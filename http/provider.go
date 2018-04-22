@@ -13,6 +13,8 @@ func Provider() terraform.ResourceProvider {
 			"http": dataSource(),
 		},
 
-		ResourcesMap: map[string]*schema.Resource{},
+		ResourcesMap: map[string]*schema.Resource{
+			"http": resourceHTTP(),
+		},
 	}
 }

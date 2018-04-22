@@ -2,16 +2,20 @@ package http
 
 import (
 	"fmt"
-	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/terraform"
 )
 
-const testDataSourceConfig_basic = `
+const testResourceHTTPConfig_basic = `
+resource "http" "http_test" {
+  url  = "%s/%s"
+  body = "%s"
+}
+
 data "http" "http_test" {
-  url = "%s/meta_%d.txt"
+  url  = "${http.http_test.url}"
 }
 
 output "body" {
@@ -19,7 +23,7 @@ output "body" {
 }
 `
 
-func TestDataSource_http200(t *testing.T) {
+func TestResourceSource_http200(t *testing.T) {
 	testHttpMock := setUpMockHttpServer()
 
 	defer testHttpMock.server.Close()
@@ -28,7 +32,7 @@ func TestDataSource_http200(t *testing.T) {
 		Providers: testProviders,
 		Steps: []resource.TestStep{
 			resource.TestStep{
-				Config: fmt.Sprintf(testDataSourceConfig_basic, testHttpMock.server.URL, 200),
+				Config: fmt.Sprintf(testResourceHTTPConfig_basic, testHttpMock.server.URL, "resource.txt", "1.0.0"),
 				Check: func(s *terraform.State) error {
 					_, ok := s.RootModule().Resources["data.http.http_test"]
 					if !ok {
@@ -51,7 +55,26 @@ func TestDataSource_http200(t *testing.T) {
 	})
 }
 
-func TestDataSource_http404(t *testing.T) {
+const testResourceHTTPBasicConfig_basic = `
+resource "http" "http_test" {
+  url       = "%s/%s"
+  body      = "%s"
+  http_user = "%s"
+  http_pass = "%s"
+}
+
+data "http" "http_test" {
+  url       = "${http.http_test.url}"
+  http_user = "${http.http_test.http_user}"
+  http_pass = "${http.http_test.http_pass}"
+}
+
+output "body" {
+  value = "${data.http.http_test.body}"
+}
+`
+
+func TestResourceSource_basic200(t *testing.T) {
 	testHttpMock := setUpMockHttpServer()
 
 	defer testHttpMock.server.Close()
@@ -60,17 +83,42 @@ func TestDataSource_http404(t *testing.T) {
 		Providers: testProviders,
 		Steps: []resource.TestStep{
 			resource.TestStep{
-				Config:      fmt.Sprintf(testDataSourceConfig_basic, testHttpMock.server.URL, 404),
-				ExpectError: regexp.MustCompile("HTTP request error. Response code: 404"),
+				Config: fmt.Sprintf(testResourceHTTPBasicConfig_basic, testHttpMock.server.URL, "basic/resource.txt", "1.0.0", "user", "pass"),
+				Check: func(s *terraform.State) error {
+					_, ok := s.RootModule().Resources["data.http.http_test"]
+					if !ok {
+						return fmt.Errorf("missing data resource")
+					}
+
+					outputs := s.RootModule().Outputs
+
+					if outputs["body"].Value != "1.0.0" {
+						return fmt.Errorf(
+							`'body' output is %s; want '1.0.0'`,
+							outputs["body"].Value,
+						)
+					}
+
+					return nil
+				},
 			},
 		},
 	})
 }
 
-const testDataSourceConfig_withHeaders = `
-data "http" "http_test" {
-  url = "%s/restricted/meta_%d.txt"
+const testResourceHTTPConfig_withHeaders = `
+resource "http" "http_test" {
+  url  = "%s/%s"
+  body = "%s"
+	
+  request_headers = {
+    "Authorization" = "Zm9vOmJhcg=="
+  }
+}
 
+data "http" "http_test" {
+  url = "${http.http_test.url}"
+	
   request_headers = {
     "Authorization" = "Zm9vOmJhcg=="
   }
@@ -81,7 +129,7 @@ output "body" {
 }
 `
 
-func TestDataSource_withHeaders200(t *testing.T) {
+func TestResourceSource_withHeaders200(t *testing.T) {
 	testHttpMock := setUpMockHttpServer()
 
 	defer testHttpMock.server.Close()
@@ -90,7 +138,7 @@ func TestDataSource_withHeaders200(t *testing.T) {
 		Providers: testProviders,
 		Steps: []resource.TestStep{
 			resource.TestStep{
-				Config: fmt.Sprintf(testDataSourceConfig_withHeaders, testHttpMock.server.URL, 200),
+				Config: fmt.Sprintf(testResourceHTTPConfig_withHeaders, testHttpMock.server.URL, "restricted/resource.txt", "1.0.0"),
 				Check: func(s *terraform.State) error {
 					_, ok := s.RootModule().Resources["data.http.http_test"]
 					if !ok {
@@ -108,92 +156,6 @@ func TestDataSource_withHeaders200(t *testing.T) {
 
 					return nil
 				},
-			},
-		},
-	})
-}
-
-const testDataSourceConfig_utf8 = `
-data "http" "http_test" {
-  url = "%s/utf-8/meta_%d.txt"
-}
-
-output "body" {
-  value = "${data.http.http_test.body}"
-}
-`
-
-func TestDataSource_utf8(t *testing.T) {
-	testHttpMock := setUpMockHttpServer()
-
-	defer testHttpMock.server.Close()
-
-	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
-		Steps: []resource.TestStep{
-			resource.TestStep{
-				Config: fmt.Sprintf(testDataSourceConfig_utf8, testHttpMock.server.URL, 200),
-				Check: func(s *terraform.State) error {
-					_, ok := s.RootModule().Resources["data.http.http_test"]
-					if !ok {
-						return fmt.Errorf("missing data resource")
-					}
-
-					outputs := s.RootModule().Outputs
-
-					if outputs["body"].Value != "1.0.0" {
-						return fmt.Errorf(
-							`'body' output is %s; want '1.0.0'`,
-							outputs["body"].Value,
-						)
-					}
-
-					return nil
-				},
-			},
-		},
-	})
-}
-
-const testDataSourceConfig_utf16 = `
-data "http" "http_test" {
-  url = "%s/utf-16/meta_%d.txt"
-}
-
-output "body" {
-  value = "${data.http.http_test.body}"
-}
-`
-
-func TestDataSource_utf16(t *testing.T) {
-	testHttpMock := setUpMockHttpServer()
-
-	defer testHttpMock.server.Close()
-
-	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
-		Steps: []resource.TestStep{
-			resource.TestStep{
-				Config:      fmt.Sprintf(testDataSourceConfig_utf16, testHttpMock.server.URL, 200),
-				ExpectError: regexp.MustCompile("Content-Type is not a text type. Got: application/json; charset=UTF-16"),
-			},
-		},
-	})
-}
-
-const testDataSourceConfig_error = `
-data "http" "http_test" {
-
-}
-`
-
-func TestDataSource_compileError(t *testing.T) {
-	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
-		Steps: []resource.TestStep{
-			resource.TestStep{
-				Config:      testDataSourceConfig_error,
-				ExpectError: regexp.MustCompile("required field is not set"),
 			},
 		},
 	})

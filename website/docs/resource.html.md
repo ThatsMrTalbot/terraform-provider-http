@@ -1,20 +1,18 @@
 ---
 layout: "http"
-page_title: "HTTP Data Source"
-sidebar_current: "docs-http-data-source"
+page_title: "HTTP Resource"
+sidebar_current: "docs-http-resource"
 description: |-
-  Retrieves the content at an HTTP or HTTPS URL.
+  Stores content on a HTTP server using PUT requests
 ---
 
-# `http` Data Source
+# `http` Resource
 
-The `http` data source makes an HTTP GET request to the given URL and exports
-information about the response.
+The `http` data source makes an HTTP PUT request to set data on a given url. It
+uses a HTTP GET request to check the existence of the resource and a HTTP DELETE 
+request when the resource is deleted.
 
-The given URL may be either an `http` or `https` URL. At present this resource
-can only retrieve data from URLs that respond with `text/*` or
-`application/json` content types, and expects the result to be UTF-8 encoded
-regardless of the returned content type header.
+The given URL may be either an `http` or `https` URL.
 
 ~> **Important** Although `https` URLs can be used, there is currently no
 mechanism to authenticate the remote server except for general verification of
@@ -24,13 +22,18 @@ your control should be treated as untrustworthy.
 ## Example Usage
 
 ```hcl
-data "http" "example" {
-  url = "https://checkpoint-api.hashicorp.com/v1/check/terraform"
+resource "http" "example" {
+  url  = "https://example.com/resource.txt"
+  data = "${file("${path.module}/resource.txt")}"
 
   # Optional request headers
   request_headers {
     "Accept" = "application/json"
   }
+
+  # Optional basic auth
+  http_user = "username"
+  http_pass = "password"
 }
 ```
 
@@ -38,8 +41,9 @@ data "http" "example" {
 
 The following arguments are supported:
 
-* `url` - (Required) The URL to request data from. This URL must respond with
-  a `200 OK` response and a `text/*` or `application/json` Content-Type.
+* `url` - (Required) The URL to request data from. 
+
+* `data` - (Required) The data to store on the URL. 
 
 * `http_user` - (Optional) The HTTP username to send with basic auth. Can also 
   be set with the HTTP_USER environment variable.
@@ -50,9 +54,3 @@ The following arguments are supported:
 * `request_headers` - (Optional) A map of strings representing additional HTTP
   headers to include in the request.
   
-
-## Attributes Reference
-
-The following attributes are exported:
-
-* `body` - The raw body of the HTTP response.

@@ -25,6 +25,24 @@ func dataSource() *schema.Resource {
 				},
 			},
 
+			"http_user": &schema.Schema{
+				Type:        schema.TypeString,
+				Optional:    true,
+				DefaultFunc: schema.EnvDefaultFunc("HTTP_USER", ""),
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+
+			"http_pass": &schema.Schema{
+				Type:        schema.TypeString,
+				Optional:    true,
+				DefaultFunc: schema.EnvDefaultFunc("HTTP_PASS", ""),
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+
 			"request_headers": &schema.Schema{
 				Type:     schema.TypeMap,
 				Optional: true,
@@ -58,6 +76,10 @@ func dataSourceRead(d *schema.ResourceData, meta interface{}) error {
 
 	for name, value := range headers {
 		req.Header.Set(name, value.(string))
+	}
+
+	if _, ok := d.GetOk("http_user"); ok {
+		req.SetBasicAuth(d.Get("http_user").(string), d.Get("http_pass").(string))
 	}
 
 	resp, err := client.Do(req)
